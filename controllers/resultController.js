@@ -67,11 +67,16 @@ const getResults = async (req, res) => {
 const getResultByStudent = async (req, res) => {
   try {
     const { examId } = req.params;
+    const userId = req.user._id;
 
+    console.log("Exam ID:", examId);
+    console.log("User ID:", userId);
+
+    // Revisi query untuk menggunakan bidang yang benar (examId dan studentId)
     const result = await Result.findOne({
-      exam: examId,
-      student: req.user._id,
-    });
+      examId,
+      studentId: userId,
+    }).lean(); // Gunakan .lean() untuk logging hasil
 
     if (!result) {
       return res.status(404).json({ message: "Hasil ujian tidak ditemukan" });
@@ -79,6 +84,9 @@ const getResultByStudent = async (req, res) => {
 
     res.status(200).json(result);
   } catch (error) {
+    console.error("Error fetching result:", error);
+
+    // Respon status 500 dengan informasi kesalahan
     res.status(500).json({ message: "Terjadi kesalahan pada server", error });
   }
 };
