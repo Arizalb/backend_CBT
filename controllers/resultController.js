@@ -121,34 +121,37 @@ async function getResultsByExam(req, res) {
 
 // Pengawas menilai jawaban essay
 const gradeEssayAnswers = async (req, res) => {
-  const { resultId } = req.params;
-  const { questionIndex, grade } = req.body; // Get the question index and grade
+  const { resultId } = req.params; // ID hasil ujian
+  const { questionIndex, grade } = req.body; // Index pertanyaan dan nilai yang diberikan
 
   try {
-    // Fetch the result by ID
+    // Temukan hasil ujian berdasarkan ID
     const result = await Result.findById(resultId);
     if (!result) {
-      return res.status(404).json({ message: "Result not found" });
+      return res.status(404).json({ message: "Hasil ujian tidak ditemukan" });
     }
 
-    // Ensure the question is of type "essay"
-    if (result.answers[questionIndex].type !== "essay") {
-      return res.status(400).json({ message: "This is not an essay question" });
+    // Pastikan soal yang dinilai adalah essay
+    const answer = result.answers[questionIndex];
+    if (answer.type !== "essay") {
+      return res.status(400).json({ message: "Ini bukan soal essay" });
     }
 
-    // Update the essay grade
-    result.answers[questionIndex].grade = grade;
+    // Simpan nilai (grade) yang diberikan
+    answer.marksObtained = grade;
 
-    // Mark the result as checked
+    // Tandai hasil ini sebagai telah diperiksa
     result.isChecked = true;
 
-    // Save the updated result
+    // Simpan perubahan ke database
     await result.save();
 
-    res.status(200).json({ message: "Essay graded successfully" });
+    res.status(200).json({ message: "Essay berhasil dinilai", result });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Error grading essay" });
+    res
+      .status(500)
+      .json({ message: "Terjadi kesalahan saat menilai essay", error });
   }
 };
 
@@ -221,21 +224,35 @@ const calculateMultipleChoiceMarks = (submittedAnswers, examQuestions) => {
 
   submittedAnswers.forEach((answer) => {
     if (answer.type === "multiple_choice") {
+      // Temukan soal yang sesuai
       const question = examQuestions.find(
         (q) => q._id.toString() === answer.questionId.toString()
       );
 
-      if (question) {
-        const correctAnswer = question.correctedAnswer; // Jawaban benar dari soal
-        const selectedAnswer = answer.selectedAnswer;
+      if (question && question.correctAnswer) {
+        const correctAnswer = question.correctAnswer; // "B"
+        const selectedAnswerText = answer.selectedAnswer; // Teks jawaban yang dipilih siswa, misal: "Komponen fisik dari komputer"
 
-        // Cocokkan jawaban yang dipilih dengan jawaban benar
-        if (
-          selectedAnswer === correctAnswer ||
-          selectedAnswer === correctAnswer.position
-        ) {
+        // Cari posisi huruf (A, B, C, D) dari teks jawaban yang dipilih
+        const selectedAnswerPosition =
+          question.options.indexOf(selectedAnswerText);
+
+        // Ubah posisi menjadi huruf A, B, C, atau D
+        const selectedAnswer = ["A", "B", "C", "D"][selectedAnswerPosition];
+
+        // Cocokkan huruf posisi dengan jawaban benar
+        if (selectedAnswer === correctAnswer) {
           totalMarks += question.marks; // Tambahkan nilai jika jawaban benar
+        } else {
+          console.log(
+            `Jawaban yang dipilih "${selectedAnswer}" tidak sesuai dengan jawaban benar "${correctAnswer}"`
+          );
         }
+      } else {
+        console.log(
+          "Soal atau correctAnswer tidak ditemukan untuk:",
+          answer.questionId
+        );
       }
     }
   });
@@ -245,44 +262,70 @@ const calculateMultipleChoiceMarks = (submittedAnswers, examQuestions) => {
 
 const calculateTotalMarks = async (examId, studentId) => {
   try {
+    // Ambil data ujian dan hasil jawaban siswa
     const exam = await Exam.findById(examId);
     const result = await Result.findOne({ examId, studentId });
 
     if (!exam || !result) {
-      throw new Error("Exam or result not found");
+      throw new Error("Exam atau hasil ujian tidak ditemukan");
     }
 
+    // Hitung nilai soal multiple-choice
     const multipleChoiceMarks = calculateMultipleChoiceMarks(
       result.answers,
       exam.questions
     );
 
-    // Total nilai saat ini hanya dari multiple-choice, essay dinilai nanti secara manual
-    result.totalMarksObtained = multipleChoiceMarks;
+    // Tambahkan nilai essay jika sudah diberikan examiner
+    const essayMarks = result.answers
+      .filter((answer) => answer.type === "essay" && answer.marksObtained)
+      .reduce((acc, answer) => acc + answer.marksObtained, 0);
 
-    // Simpan hasil setelah perhitungan otomatis
+    // Total nilai yang diperoleh
+    const totalMarks = multipleChoiceMarks + essayMarks;
+
+    // Simpan total nilai ke dalam result
+    result.totalMarksObtained = totalMarks;
+
+    // Tandai hasil sebagai sudah diperiksa jika semua essay sudah diberi nilai
+    const allEssaysGraded = result.answers.every(
+      (answer) => answer.type !== "essay" || answer.marksObtained
+    );
+    if (allEssaysGraded) {
+      result.isChecked = true; // Semua essay sudah dinilai
+    }
+
+    // Simpan perubahan ke database
     await result.save();
 
     return result;
   } catch (error) {
-    throw new Error(`Error calculating total marks: ${error.message}`);
+    throw new Error(`Error menghitung total nilai: ${error.message}`);
   }
 };
 
-// Endpoint untuk menghitung nilai setelah ujian selesai
 const submitExamResult = async (req, res) => {
-  const { examId, studentId } = req.body;
+  const { resultId } = req.params; // Ambil resultId dari parameter URL
 
   try {
-    const result = await calculateTotalMarks(examId, studentId);
+    // Ambil result berdasarkan resultId
+    const result = await Result.findById(resultId);
+
+    if (!result) {
+      return res.status(404).json({ message: "Hasil ujian tidak ditemukan" });
+    }
+
+    const { examId, studentId } = result; // Ambil examId dan studentId dari result
+
+    const calculatedResult = await calculateTotalMarks(examId, studentId);
 
     res.status(200).json({
-      message: "Exam result submitted successfully",
-      result,
+      message: "Nilai ujian berhasil dihitung",
+      result: calculatedResult,
     });
   } catch (error) {
     res.status(500).json({
-      message: error.message,
+      message: `Error menghitung total nilai: ${error.message}`,
     });
   }
 };

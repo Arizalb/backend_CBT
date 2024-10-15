@@ -31,13 +31,11 @@ router.get("/completed-exams", protect, getCompletedExamsByStudent);
 router.get("/:id", protect, examiner, getResultById);
 
 // Pengawas menilai jawaban essay
-router.put(
-  "/grade/:resultId",
-  protect,
-  examiner,
-  gradeEssayAnswers,
-  submitExamResult
-);
+router.put("/grade/:resultId", protect, examiner, gradeEssayAnswers);
+
+// Pengawas mengirimkan hasil ujian dan menghitung nilai akhir
+router.post("/grade/:resultId/finalize", protect, examiner, submitExamResult);
+
 router.post("/grade/:resultId", protect, examiner, submitExamResult);
 
 module.exports = router;
