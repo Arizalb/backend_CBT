@@ -1,6 +1,7 @@
 const Result = require("../models/Result");
 const Exam = require("../models/Exam");
 const { default: mongoose } = require("mongoose");
+const sendEmail = require("../utils/sendEmail");
 
 const submitExam = async (req, res) => {
   try {
@@ -313,22 +314,28 @@ const calculateTotalMarks = async (examId, studentId) => {
 };
 
 const submitExamResult = async (req, res) => {
-  const { resultId } = req.params; // Ambil resultId dari parameter URL
+  const { resultId } = req.params;
 
   try {
-    // Ambil result berdasarkan resultId
     const result = await Result.findById(resultId);
 
     if (!result) {
       return res.status(404).json({ message: "Hasil ujian tidak ditemukan" });
     }
 
-    const { examId, studentId } = result; // Ambil examId dan studentId dari result
+    const { examId, studentId, studentEmail } = result;
 
     const calculatedResult = await calculateTotalMarks(examId, studentId);
 
+    // Kirim email setelah nilai dihitung
+    sendEmail(
+      studentEmail,
+      "Nilai Ujian Anda",
+      `Nilai ujian Anda adalah ${calculatedResult.totalMarks}.`
+    );
+
     res.status(200).json({
-      message: "Nilai ujian berhasil dihitung",
+      message: "Nilai ujian berhasil dihitung dan email terkirim",
       result: calculatedResult,
     });
   } catch (error) {

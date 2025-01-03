@@ -57,7 +57,38 @@ const getExamById = async (req, res) => {
       return res.status(404).json({ message: "Ujian tidak ditemukan" });
     }
 
-    res.status(200).json(exam);
+    // Pisahkan soal multiple choice dan essay
+    const multipleChoiceQuestions = exam.questions.filter(
+      (q) => q.type === "multiple_choice"
+    );
+    const essayQuestions = exam.questions.filter((q) => q.type === "essay");
+
+    // Fungsi untuk mengacak array
+    const shuffleArray = (array) => {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    };
+
+    // Acak hanya soal multiple-choice
+    const shuffledMultipleChoiceQuestions = shuffleArray(
+      multipleChoiceQuestions
+    );
+
+    // Gabungkan kembali soal dengan urutan multiple-choice yang diacak
+    const shuffledQuestions = [
+      ...shuffledMultipleChoiceQuestions,
+      ...essayQuestions,
+    ];
+
+    // Return soal yang diacak dan urutan asli
+    res.status(200).json({
+      ...exam.toObject(),
+      questions: shuffledQuestions,
+      originalOrder: exam.questions.map((q) => q._id), // Simpan ID urutan asli
+    });
   } catch (error) {
     console.error("Error fetching exam:", error);
     res.status(500).json({ message: "Terjadi kesalahan pada server" });
