@@ -17,7 +17,7 @@ const registerUser = async (req, res) => {
     // Cek apakah user sudah ada
     const userExists = await User.findOne({ email });
     if (userExists) {
-      return res.status(400).json({ message: "Pengguna sudah terdaftar" });
+      return res.status(400).json({ message: "Email sudah terdaftar" });
     }
 
     // Hash password

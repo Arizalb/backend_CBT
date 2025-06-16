@@ -345,6 +345,61 @@ const submitExamResult = async (req, res) => {
   }
 };
 
+// Mendapatkan detail hasil ujian untuk siswa
+const getResultDetailByStudent = async (req, res) => {
+  try {
+    const { examId } = req.params;
+    const userId = req.user._id;
+
+    // Ambil hasil ujian student
+    const result = await Result.findOne({ examId, studentId: userId }).lean();
+    if (!result) {
+      return res.status(404).json({ message: "Hasil ujian tidak ditemukan" });
+    }
+
+    // Ambil data exam (soal)
+    const exam = await Exam.findById(examId).lean();
+    if (!exam) {
+      return res.status(404).json({ message: "Data ujian tidak ditemukan" });
+    }
+
+    // Gabungkan jawaban student dengan kunci jawaban
+    const answersWithStatus = result.answers.map((answer) => {
+      const question = exam.questions.find(
+        (q) => q._id.toString() === answer.questionId.toString()
+      );
+      if (!question) return { ...answer, correct: null };
+
+      if (answer.type === "multiple_choice") {
+        const options = question.options;
+        const correctAnswer = question.correctAnswer; // "C"
+        const selectedAnswerText = answer.selectedAnswer; // "4"
+        const selectedIndex = options.indexOf(selectedAnswerText); // 2
+        const selectedAnswerLetter = ["A", "B", "C", "D"][selectedIndex]; // "C"
+        const isCorrect = selectedAnswerLetter === correctAnswer;
+
+        return {
+          ...answer,
+          questionText: question.questionText,
+          options: question.options,
+          correctAnswer: question.correctAnswer,
+          isCorrect,
+        };
+      }
+      // ...essay logic...
+      return answer;
+    });
+
+    res.status(200).json({
+      ...result,
+      answers: answersWithStatus,
+    });
+  } catch (error) {
+    console.error("Error fetching result detail:", error);
+    res.status(500).json({ message: "Terjadi kesalahan pada server", error });
+  }
+};
+
 module.exports = {
   submitExam,
   getResults,
@@ -354,4 +409,5 @@ module.exports = {
   gradeEssayAnswers,
   getCompletedExamsByStudent,
   submitExamResult,
+  getResultDetailByStudent,
 };

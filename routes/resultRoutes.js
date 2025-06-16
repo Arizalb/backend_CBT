@@ -8,6 +8,7 @@ const {
   getResults,
   getResultById,
   submitExamResult,
+  getResultDetailByStudent,
 } = require("../controllers/resultController");
 const { protect, examiner } = require("../middleware/authMiddleware");
 const router = express.Router();
@@ -17,6 +18,9 @@ router.post("/submit/:examId", protect, submitExam);
 
 // Siswa mendapatkan hasil ujian
 router.get("/student/:examId", protect, getResultByStudent);
+
+// Siswa mendapatkan hasil ujian
+router.get("/student/:examId/detail", protect, getResultDetailByStudent);
 
 // Pengawas mendapatkan semua hasil ujian
 router.get("/exam/:examId", protect, examiner, getResultsByExam);
