@@ -1,4 +1,5 @@
 // controllers/userController.js
+const mongoose = require("mongoose");
 const asyncHandler = require("express-async-handler");
 const User = require("../models/User");
 
@@ -34,14 +35,27 @@ const getUserById = asyncHandler(async (req, res) => {
 // @route   DELETE /api/users/:id
 // @access  Private/Admin
 const deleteUser = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.params.id);
+  try {
+    const id = req.params.id;
 
-  if (user) {
-    await user.remove();
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(400);
+      throw new Error("Invalid user ID");
+    }
+
+    const user = await User.findById(id);
+
+    if (!user) {
+      res.status(404);
+      throw new Error("User not found");
+    }
+
+    await User.findByIdAndDelete(id);
+    console.log(`User with ID ${id} deleted successfully`);
     res.json({ message: "User removed" });
-  } else {
-    res.status(404);
-    throw new Error("User not found");
+  } catch (error) {
+    console.error("Delete user error:", error.message, error.stack);
+    res.status(500).json({ message: "Server error deleting user" });
   }
 });
 
