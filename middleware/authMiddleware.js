@@ -53,4 +53,17 @@ const examiner = (req, res, next) => {
   }
 };
 
-module.exports = { protect, admin, examiner };
+// Middleware untuk mengizinkan banyak role
+const allowRoles = (...allowedRoles) => {
+  return (req, res, next) => {
+    if (req.user && allowedRoles.includes(req.user.role)) {
+      next(); // Jika role cocok, lanjut
+    } else {
+      res
+        .status(403)
+        .json({ message: "Akses ditolak, tidak memiliki izin yang sesuai" });
+    }
+  };
+};
+
+module.exports = { protect, admin, examiner, allowRoles };

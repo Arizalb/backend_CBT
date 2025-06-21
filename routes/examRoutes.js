@@ -6,7 +6,11 @@ const {
   updateExam,
   deleteExam,
 } = require("../controllers/examController");
-const { protect, examiner } = require("../middleware/authMiddleware");
+const {
+  protect,
+  examiner,
+  allowRoles,
+} = require("../middleware/authMiddleware");
 const {
   validateCreateExam,
   validateUpdateExam,
@@ -26,6 +30,7 @@ router.get("/:id", protect, getExamById);
 router.put("/:id", protect, examiner, validateUpdateExam, updateExam);
 
 // Rute untuk menghapus ujian
-router.delete("/:id", protect, examiner, deleteExam);
+// router.delete("/:id", protect, examiner, deleteExam);
+router.delete("/:id", protect, allowRoles("admin", "examiner"), deleteExam);
 
 module.exports = router;
