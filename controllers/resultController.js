@@ -2,6 +2,7 @@ const Result = require("../models/Result");
 const Exam = require("../models/Exam");
 const { default: mongoose } = require("mongoose");
 const sendEmail = require("../utils/sendEmail");
+const User = require("../models/User");
 
 const submitExam = async (req, res) => {
   try {
@@ -11,6 +12,11 @@ const submitExam = async (req, res) => {
       return res.status(400).json({ message: "Data tidak lengkap" });
     }
 
+    const exam = await Exam.findById(examId);
+    if (!exam) {
+      return res.status(404).json({ message: "Ujian tidak ditemukan" });
+    }
+
     const result = new Result({
       examId,
       studentId,
@@ -18,6 +24,31 @@ const submitExam = async (req, res) => {
     });
 
     await result.save();
+
+    // Periksa apakah ujian memiliki soal esai
+    const hasEssayQuestions = exam.questions.some(
+      (question) => question.type === "essay"
+    );
+    if (!hasEssayQuestions) {
+      // Jika tidak ada soal esai, langsung hitung nilai
+      const calculatedResult = await calculateTotalMarks(examId, studentId);
+      // Kirim email notifikasi kepada siswa
+      const studentEmail =
+        req.body.studentEmail ||
+        (await User.findById(studentId).select("email")).email;
+      if (studentEmail) {
+        sendEmail(
+          studentEmail,
+          "Nilai Ujian Anda",
+          `Nilai ujian Anda adalah ${calculatedResult.totalMarksObtained}.`
+        );
+      }
+      return res.status(201).json({
+        message: "Jawaban ujian berhasil disimpan dan nilai telah dihitung",
+        result: calculatedResult,
+      });
+    }
+
     res
       .status(201)
       .json({ message: "Jawaban ujian berhasil disimpan", result });
@@ -400,6 +431,40 @@ const getResultDetailByStudent = async (req, res) => {
   }
 };
 
+// Menghapus semua hasil ujian (hanya untuk admin)
+const deleteAllResults = async (req, res) => {
+  try {
+    // Periksa apakah pengguna adalah admin
+    if (req.user.role !== "admin") {
+      return res
+        .status(403)
+        .json({
+          message:
+            "Akses ditolak. Hanya admin yang dapat menghapus semua hasil ujian.",
+        });
+    }
+
+    // Hapus semua hasil ujian dari database
+    const deletionResult = await Result.deleteMany({});
+
+    if (deletionResult.deletedCount === 0) {
+      return res
+        .status(404)
+        .json({
+          message: "Tidak ada hasil ujian yang ditemukan untuk dihapus.",
+        });
+    }
+
+    res.status(200).json({
+      message: "Semua hasil ujian berhasil dihapus.",
+      deletedCount: deletionResult.deletedCount,
+    });
+  } catch (error) {
+    console.error("Error saat menghapus semua hasil ujian:", error);
+    res.status(500).json({ message: "Terjadi kesalahan pada server", error });
+  }
+};
+
 module.exports = {
   submitExam,
   getResults,
@@ -410,4 +475,5 @@ module.exports = {
   getCompletedExamsByStudent,
   submitExamResult,
   getResultDetailByStudent,
+  deleteAllResults,
 };

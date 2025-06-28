@@ -9,8 +9,9 @@ const {
   getResultById,
   submitExamResult,
   getResultDetailByStudent,
+  deleteAllResults,
 } = require("../controllers/resultController");
-const { protect, examiner } = require("../middleware/authMiddleware");
+const { protect, examiner, admin } = require("../middleware/authMiddleware");
 const router = express.Router();
 
 // Siswa mengirimkan jawaban ujian
@@ -41,5 +42,8 @@ router.put("/grade/:resultId", protect, examiner, gradeEssayAnswers);
 router.post("/grade/:resultId/finalize", protect, examiner, submitExamResult);
 
 router.post("/grade/:resultId", protect, examiner, submitExamResult);
+
+// Admin menghapus semua hasil ujian
+router.delete("/delete-all", protect, admin, deleteAllResults);
 
 module.exports = router;
